@@ -296,12 +296,20 @@ let allProfiles = [];
 let pendingFreqId = null;
 let pendingDelId = null;
 
-// ─── AUTH ───────────────────────────────────────────
+// ─── AUTH SIMPLES (sem Supabase Auth) ───────────────────────────────────────────
+// Usa tabela profiles com senha hash simples
 function toggleAuth(){
-  document.getElementById('auth-form-login').style.display =
-    document.getElementById('auth-form-login').style.display==='none'?'block':'none';
-  document.getElementById('auth-form-register').style.display =
-    document.getElementById('auth-form-register').style.display==='none'?'block':'none';
+  var login = document.getElementById('auth-form-login');
+  var reg = document.getElementById('auth-form-register');
+  login.style.display = login.style.display==='none'?'block':'none';
+  reg.style.display = reg.style.display==='none'?'block':'none';
+}
+
+// Hash simples para senha (não criptográfico, mas suficiente para uso interno)
+async function hashPass(pass){
+  const enc = new TextEncoder();
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(pass+'rotina_sgp_salt'));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
 async function doLogin(){
@@ -313,18 +321,19 @@ async function doLogin(){
   const btn = document.querySelector('#auth-form-login .btn-primary');
   btn.disabled=true; btn.textContent='Entrando...';
   try {
-    const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
-    if(error){
-      console.error('Login error:', error);
-      errEl.textContent = error.message==='Invalid login credentials'
-        ? 'E-mail ou senha incorretos. Se é seu primeiro acesso, clique em Criar conta.'
-        : error.message==='Email not confirmed'
-        ? 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.'
-        : 'Erro: '+error.message;
+    const hash = await hashPass(pass);
+    const {data,error} = await sb.from('profiles').select('*').eq('email',email).eq('pass_hash',hash).single();
+    if(error||!data){
+      errEl.textContent='E-mail ou senha incorretos.';
+    } else {
+      currentUser = {id:data.id, email:data.email};
+      localStorage.setItem('rotina_user', JSON.stringify(currentUser));
+      await loadProfiles();
+      initApp();
     }
   } catch(e){
-    console.error('Login exception:', e);
-    errEl.textContent = 'Erro de conexão. Verifique o console (F12).';
+    errEl.textContent='Erro de conexão.';
+    console.error(e);
   }
   btn.disabled=false; btn.textContent='Entrar';
 }
@@ -341,48 +350,46 @@ async function doRegister(){
   const btn = document.querySelector('#auth-form-register .btn-primary');
   btn.disabled=true; btn.textContent='Criando conta...';
   try {
-    const {data,error} = await sb.auth.signUp({email,password:pass,options:{data:{name}}});
-    if(error){errEl.textContent='Erro: '+error.message;btn.disabled=false;btn.textContent='Criar conta';return;}
-    if(data.user){
-      await sb.from('profiles').upsert({id:data.user.id,email,name});
-      // Se confirmação de email estiver desativada, loga direto
-      if(data.session){
-        // já logou automaticamente via onAuthStateChange
-      } else {
-        errEl.style.color='#1D9E75';
-        errEl.textContent='Conta criada! Verifique seu e-mail para confirmar antes de entrar.';
-      }
-    }
+    const {data:existing} = await sb.from('profiles').select('id').eq('email',email).single();
+    if(existing){errEl.textContent='Este e-mail já está cadastrado.';btn.disabled=false;btn.textContent='Criar conta';return;}
+    const hash = await hashPass(pass);
+    const id = crypto.randomUUID();
+    const {error} = await sb.from('profiles').insert({id,email,name,pass_hash:hash});
+    if(error){errEl.textContent='Erro ao criar conta: '+error.message;btn.disabled=false;btn.textContent='Criar conta';return;}
+    currentUser = {id, email};
+    localStorage.setItem('rotina_user', JSON.stringify(currentUser));
+    await loadProfiles();
+    initApp();
   } catch(e){
-    console.error('Register error:', e);
     errEl.textContent='Erro de conexão.';
+    console.error(e);
   }
   btn.disabled=false; btn.textContent='Criar conta';
 }
 
 async function doLogout(){
-  await sb.auth.signOut();
+  localStorage.removeItem('rotina_user');
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   currentUser=null;allProfiles=[];
 }
 
-sb.auth.onAuthStateChange(async(event,session)=>{
-  if(session?.user){
-    currentUser = session.user;
-    await ensureProfile();
-    await loadProfiles();
-    initApp();
+// Verificar sessão salva
+async function checkSession(){
+  const saved = localStorage.getItem('rotina_user');
+  if(saved){
+    try{
+      currentUser = JSON.parse(saved);
+      await loadProfiles();
+      initApp();
+      return true;
+    }catch(e){localStorage.removeItem('rotina_user');}
   }
-});
-
-async function ensureProfile(){
-  const {data} = await sb.from('profiles').select('*').eq('id',currentUser.id).single();
-  if(!data){
-    const name = currentUser.email.split('@')[0];
-    await sb.from('profiles').insert({id:currentUser.id,email:currentUser.email,name});
-  }
+  return false;
 }
+
+// Iniciar verificação de sessão
+checkSession();
 
 async function loadProfiles(){
   const {data} = await sb.from('profiles').select('*');
