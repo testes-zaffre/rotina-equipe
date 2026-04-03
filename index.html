@@ -155,6 +155,15 @@ textarea:focus{border-color:#888}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 .empty{font-size:12px;color:var(--text3);padding:8px 10px;font-style:italic}
+.skip-btn{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:none;cursor:pointer;color:var(--text3);white-space:nowrap;flex-shrink:0}
+.skip-btn:hover{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+.task-item.skipped{opacity:.6;border-left:2px solid var(--red)}
+.skip-reason{font-size:11px;color:var(--red);margin-top:3px;font-style:italic}
+.hist-day{margin-bottom:16px}
+.hist-day-title{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.hist-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius-sm);margin-bottom:3px;font-size:13px}
+.hist-done{background:var(--green-bg);color:#0a5c3f}
+.hist-skip{background:var(--red-bg);color:#8b1a1a}
 </style>
 </head>
 <body>
@@ -199,6 +208,7 @@ textarea:focus{border-color:#888}
       <button class="tab" onclick="showTab('month',this)">Mês</button>
       <button class="tab" onclick="showTab('notes',this)">Retrospectiva</button>
       <button class="tab" onclick="showTab('scrum',this)">Scrum</button>
+      <button class="tab" onclick="showTab('historico',this)">Histórico</button>
       <button class="tab" onclick="showTab('templates',this)">Rotinas</button>
     </div>
 
@@ -238,6 +248,13 @@ textarea:focus{border-color:#888}
       </div>
     </div>
 
+    <!-- HISTORICO -->
+    <div id="panel-historico" class="panel">
+      <div id="hist-content">
+        <div class="loader"><span class="spin"></span>Carregando...</div>
+      </div>
+    </div>
+
     <!-- TEMPLATES -->
     <div id="panel-templates" class="panel">
       <div id="templates-content">
@@ -264,6 +281,29 @@ textarea:focus{border-color:#888}
 </div>
 
 <!-- MODAL DELETE -->
+<div class="modal-overlay" id="skip-modal">
+  <div class="modal">
+    <h3>Por que não foi feito?</h3>
+    <div class="field" style="margin-top:12px">
+      <select id="skip-reason-select" style="width:100%;padding:9px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px">
+        <option value="Não houve tempo">Não houve tempo</option>
+        <option value="Bloqueado por terceiro">Bloqueado por terceiro</option>
+        <option value="Adiado intencionalmente">Adiado intencionalmente</option>
+        <option value="Não era necessário hoje">Não era necessário hoje</option>
+        <option value="Emergência / imprevisto">Emergência / imprevisto</option>
+        <option value="Outro">Outro motivo</option>
+      </select>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <textarea id="skip-reason-text" placeholder="Detalhe opcional..." style="width:100%;min-height:60px;font-size:13px;padding:8px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:inherit"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-sec" onclick="closeModal('skip-modal')">Cancelar</button>
+      <button class="btn-primary" style="padding:8px 16px" onclick="confirmSkip()">Registrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="del-modal">
   <div class="modal">
     <h3>Remover tarefa obrigatória?</h3>
@@ -426,6 +466,7 @@ function renderCurrentPanel(){
   if(id==='month') renderMonth();
   if(id==='notes') renderNotes();
   if(id==='scrum') renderScrum();
+  if(id==='historico') renderHistorico();
   if(id==='templates') renderTemplates();
 }
 
@@ -871,17 +912,22 @@ async function renderTemplates(){
   function tmplHtml(t){
     var freqLabel = t.frequency==='daily'?'Diario':t.frequency==='weekly'?'Semanal':'Mensal';
     var activeLabel = t.is_active?'Desativar':'Ativar';
-    var div = document.createElement('div');
-    div.className = 'tmpl-item';
-    div.style.opacity = t.is_active ? 1 : 0.45;
-    div.innerHTML = '<div class="tmpl-text">'+t.title+'</div>'+
-      '<span class="freq-pill freq-'+t.frequency+'">'+freqLabel+'</span>'+
-      '<button class="del-btn">'+activeLabel+'</button>';
-    div.querySelector('.freq-pill').onclick = function(){ openFreqModal(t.id, t.title, t.frequency); };
-    div.querySelector('.del-btn').onclick = function(){ openDelModal(t.id, t.title, t.is_active); };
-    return div.outerHTML;
+    var eid = 'tmpl-'+t.id.replace(/-/g,'');
+    return '<div class="tmpl-item" style="opacity:'+(t.is_active?1:0.45)+'">'+
+      '<div class="tmpl-text">'+t.title+'</div>'+
+      '<span class="freq-pill freq-'+t.frequency+'" id="fp-'+eid+'" style="cursor:pointer">'+freqLabel+'</span>'+
+      '<button class="del-btn" id="db-'+eid+'">'+activeLabel+'</button>'+
+    '</div>';
+  }
+  function bindTmplEvents(t){
+    var eid='tmpl-'+t.id.replace(/-/g,'');
+    var fp=document.getElementById('fp-'+eid);
+    var db=document.getElementById('db-'+eid);
+    if(fp) fp.onclick=function(){openFreqModal(t.id,t.title,t.frequency);};
+    if(db) db.onclick=function(){openDelModal(t.id,t.title,t.is_active);};
   }
 
+  var allTmpls = tmpls||[];
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div>
@@ -909,6 +955,7 @@ async function renderTemplates(){
     <div style="margin-top:20px;padding:12px 14px;background:var(--bg);border-radius:var(--radius-sm);font-size:12px;color:var(--text2)">
       💡 Clique na frequência (Diário/Semanal/Mensal) para mover uma tarefa entre rotinas. Clique em "Desativar" para ocultar sem excluir.
     </div>`;
+  allTmpls.forEach(function(t){ bindTmplEvents(t); });
 }
 
 async function addTemplate(freq){
@@ -945,6 +992,179 @@ async function confirmDelete(){
   await sb.from('task_templates').update({is_active:!pendingDelId.isActive}).eq('id',pendingDelId.id);
   closeModal('del-modal');
   renderTemplates();
+}
+
+
+// ─── SKIP / NAO FEITO ────────────────────────────────────────────
+let pendingSkip = null;
+function openSkipModal(taskId, listType){
+  pendingSkip = {taskId, listType};
+  document.getElementById('skip-reason-select').value='Não houve tempo';
+  document.getElementById('skip-reason-text').value='';
+  document.getElementById('skip-modal').classList.add('open');
+}
+async function confirmSkip(){
+  if(!pendingSkip)return;
+  const reason = document.getElementById('skip-reason-select').value;
+  const detail = document.getElementById('skip-reason-text').value.trim();
+  const full = detail ? reason+': '+detail : reason;
+  await sb.from('tasks').update({done:false,skip_reason:full}).eq('id',pendingSkip.taskId);
+  closeModal('skip-modal');
+  renderCurrentPanel();
+}
+
+// ─── HISTORICO ────────────────────────────────────────────
+async function renderHistorico(){
+  const el = document.getElementById('hist-content');
+  el.innerHTML='<div class="loader"><span class="spin"></span>Carregando...</div>';
+  const today = new Date();
+  const days = [];
+  for(var i=1;i<=7;i++){
+    var d = new Date(today);
+    d.setDate(today.getDate()-i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  const {data:tasks} = await sb.from('tasks')
+    .select('*,profiles(name)')
+    .gte('created_at', days[days.length-1]+'T00:00:00')
+    .lt('created_at', days[0]+'T23:59:59')
+    .order('created_at',{ascending:false});
+
+  const profiles=[myProfile(),...otherProfiles()];
+  var html='<div class="dual">';
+  profiles.forEach(function(profile){
+    var isMe=profile.id===currentUser.id;
+    html+='<div class="user-col">';
+    html+='<div class="col-header"><div class="col-avatar" style="background:'+userBg(profile.id)+';color:'+userColor(profile.id)+'">'+profile.name.slice(0,2).toUpperCase()+'</div>';
+    html+='<div class="col-name">'+profile.name+'</div>'+(isMe?'<span class="col-you">você</span>':'')+' </div>';
+    var myTasks=(tasks||[]).filter(function(t){return t.assigned_to===profile.id;});
+    if(myTasks.length===0){html+='<div class="empty">Sem histórico recente</div>';}
+    days.forEach(function(day){
+      var dayTasks=myTasks.filter(function(t){return t.created_at&&t.created_at.startsWith(day);});
+      if(dayTasks.length===0)return;
+      var d=new Date(day+'T12:00:00');
+      var label=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
+      html+='<div class="hist-day"><div class="hist-day-title">'+label+'</div>';
+      dayTasks.forEach(function(t){
+        if(t.done){
+          html+='<div class="hist-item hist-done">✓ '+t.title+'</div>';
+        } else if(t.skip_reason){
+          html+='<div class="hist-item hist-skip">✗ '+t.title+'<span style="margin-left:6px;font-size:10px;opacity:.8">('+t.skip_reason+')</span></div>';
+        }
+      });
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ─── SCRUM + RETROSPECTIVA ────────────────────────────────────────────
+async function renderScrum(){
+  var el=document.getElementById('scrum-content');
+  el.innerHTML='<div class="loader"><span class="spin"></span>Carregando...</div>';
+  var mr=getMonthRef();
+  var months=['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var now=new Date();
+  var monthName=months[now.getMonth()]+' '+now.getFullYear();
+  var wr=getWeekRef();
+
+  var scrumRes = await sb.from('scrum_records').select('*').eq('month_ref',mr);
+  var notesRes = await sb.from('weekly_notes').select('*').eq('week_ref',wr);
+  var scrumData = scrumRes.data||[];
+  var notesData = notesRes.data||[];
+
+  var profiles=[myProfile(),...otherProfiles()];
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">';
+  html+='<div style="font-size:16px;font-weight:600">Sprint — '+monthName+'</div>';
+  html+='<span style="font-size:12px;color:var(--text3)">Scrum mensal + Retrospectiva semanal</span></div>';
+  html+='<div class="dual" id="scrum-dual"></div>';
+  el.innerHTML=html;
+
+  var wrap=document.getElementById('scrum-dual');
+  profiles.forEach(function(profile){
+    var isMe=profile.id===currentUser.id;
+    var scrum=scrumData.find(function(r){return r.user_id===profile.id;})||{};
+    var note=notesData.find(function(n){return n.user_id===profile.id;})||{};
+    var col=document.createElement('div');
+    col.className='user-col';
+
+    function field(label, key, obj, rows){
+      var r=rows||2;
+      if(isMe){
+        var tid='sf-'+key+'-'+profile.id;
+        return '<div class="note-label">'+label+'</div>'+
+          '<textarea id="'+tid+'" style="min-height:'+(r*36)+'px" oninput="saveScrumField(this)">'+((obj&&obj[key])||'')+'</textarea>';
+      } else {
+        return '<div class="note-label">'+label+'</div>'+
+          '<div style="font-size:13px;padding:8px 11px;background:var(--bg);border-radius:var(--radius-sm);min-height:40px;line-height:1.5">'+((obj&&obj[key])||'<em style="color:var(--text3)">Sem registro</em>')+'</div>';
+      }
+    }
+    function chk(label, key, obj){
+      if(isMe){
+        return '<div style="display:flex;align-items:center;gap:8px;margin-top:10px">'+
+          '<input type="checkbox" id="sf-'+key+'-'+profile.id+'" '+(obj&&obj[key]?'checked':'')+' onchange="saveScrumField(this)">'+
+          '<label for="sf-'+key+'-'+profile.id+'" style="font-size:13px;cursor:pointer">'+label+'</label></div>';
+      } else {
+        return '<div style="font-size:13px;padding:6px 11px;background:var(--bg);border-radius:var(--radius-sm);margin-top:8px">'+
+          label+': '+(obj&&obj[key]?'✓ Sim':'— Pendente')+'</div>';
+      }
+    }
+
+    col.innerHTML=
+      '<div class="col-header">'+
+        '<div class="col-avatar" style="background:'+userBg(profile.id)+';color:'+userColor(profile.id)+'">'+profile.name.slice(0,2).toUpperCase()+'</div>'+
+        '<div class="col-name">'+profile.name+'</div>'+(isMe?'<span class="col-you">você</span>':'')+
+      '</div>'+
+      '<div style="background:var(--blue-bg);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--blue)">Sprint '+monthName+'</div>'+
+      '<div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Planejamento da sprint</div>'+
+      field('Meta da sprint (o que será entregue?)', 'sprint_goal', scrum, 2)+
+      field('Itens do backlog selecionados', 'backlog_items', scrum, 3)+
+      '<div class="divider"></div>'+
+      '<div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Review da sprint anterior</div>'+
+      field('O que foi concluído?', 'done_last', scrum, 2)+
+      field('O que não foi concluído? Por quê?', 'not_done', scrum, 2)+
+      chk('Review apresentado ao cliente', 'review_done', scrum)+
+      '<div class="divider"></div>'+
+      '<div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Retrospectiva semanal</div>'+
+      field('O que funcionou bem?', 'note_good', note, 2)+
+      field('O que precisa melhorar?', 'note_bad', note, 2)+
+      field('Impedimentos / bloqueios', 'impediments', scrum, 2)+
+      field('Alinhamento com cliente (decisões tomadas)', 'client_alignment', scrum, 2)+
+      field('Ações para próxima sprint', 'next_actions', scrum, 2)+
+      field('Foco da próxima semana', 'note_next', note, 2)+
+      field('Alinhamentos com Key Users', 'note_keyuser', note, 2)+
+      chk('Todas as horas lançadas no Jira', 'jira_done', note)+
+      chk('Retrospectiva realizada com equipe', 'retro_done', scrum);
+
+    wrap.appendChild(col);
+  });
+}
+
+let scrumTimer2=null;
+async function saveScrumField(el){
+  var userId = el.id.split('-').pop();
+  clearTimeout(scrumTimer2);
+  scrumTimer2=setTimeout(async function(){
+    var mr=getMonthRef(); var wr=getWeekRef();
+    function v(k){var e=document.getElementById('sf-'+k+'-'+userId);return e?e.value:'';}
+    function c(k){var e=document.getElementById('sf-'+k+'-'+userId);return e?e.checked:false;}
+    await sb.from('scrum_records').upsert({
+      user_id:userId,month_ref:mr,
+      sprint_goal:v('sprint_goal'),backlog_items:v('backlog_items'),
+      done_last:v('done_last'),not_done:v('not_done'),
+      impediments:v('impediments'),client_alignment:v('client_alignment'),
+      next_actions:v('next_actions'),review_done:c('review_done'),retro_done:c('retro_done'),
+      updated_at:new Date().toISOString()
+    },{onConflict:'user_id,month_ref'});
+    await sb.from('weekly_notes').upsert({
+      user_id:userId,week_ref:wr,
+      note_good:v('note_good'),note_bad:v('note_bad'),
+      note_next:v('note_next'),note_keyuser:v('note_keyuser'),
+      jira_done:c('jira_done'),updated_at:new Date().toISOString()
+    },{onConflict:'user_id,week_ref'});
+  },800);
 }
 
 function closeModal(id){
