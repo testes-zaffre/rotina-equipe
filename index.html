@@ -52,11 +52,11 @@ button{padding:10px;width:100%;margin-top:5px}
 <button onclick="logout()">Sair</button>
 
 </div>
-  
+
 <script>
 const sb = supabase.createClient(
-'https://awnmxrxkhxepryixhurd.supabase.co',
-'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3bm14cnhraHhlcHJ5aXhodXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzc0MzksImV4cCI6MjA5MDcxMzQzOX0.iajrnVDp05G9MAVWGbIHJEbK7dl5U4uqqry7p7CLg_M'
+  'https://awnmxrxkhxepryixhurd.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3bm14cnhraHhlcHJ5aXhodXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzc0MzksImV4cCI6MjA5MDcxMzQzOX0.iajrnVDp05G9MAVWGbIHJEbK7dl5U4uqqry7p7CLg_M'
 );
 
 let me = null;
@@ -77,13 +77,13 @@ async function login(){
 
   const h = await hash(passInput);
 
-  const {data} = await sb.from('profiles')
+  const {data, error} = await sb.from('profiles')
     .select('*')
     .eq('email', emailInput)
     .eq('pass_hash', h)
     .single();
 
-  if(!data){
+  if(error || !data){
     document.getElementById("err").innerText = "Erro login";
     return;
   }
@@ -169,5 +169,6 @@ async function addTomorrow(){
   load();
 }
 </script>
+
 </body>
 </html>
