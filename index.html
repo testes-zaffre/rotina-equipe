@@ -4,115 +4,65 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rotina Equipe</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial;background:#f7f7f5;color:#1a1a18}
-
-/* LOGIN */
-#auth{display:flex;align-items:center;justify-content:center;min-height:100vh}
-.acard{background:#fff;border-radius:12px;padding:30px;width:100%;max-width:360px}
-.field{margin-bottom:12px}
-.field input{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px}
-.btn{width:100%;padding:10px;background:#000;color:#fff;border:none;border-radius:6px;cursor:pointer}
-.aerr{color:red;font-size:12px;margin-top:5px}
-.toggle{margin-top:10px;font-size:13px;text-align:center;cursor:pointer}
-
-/* APP */
-#app{display:none;padding:20px}
-.top{display:flex;justify-content:space-between;margin-bottom:20px}
+body{font-family:Arial;background:#f5f5f5;padding:20px}
+.box{background:#fff;padding:20px;border-radius:10px;max-width:400px;margin:auto}
+input{width:100%;padding:10px;margin:5px 0}
+button{padding:10px;width:100%;margin-top:5px}
+.task{padding:8px;border-bottom:1px solid #ddd}
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
-<div id="auth">
-  <div class="acard">
-    <h2>Rotina Equipe</h2>
+<div id="auth" class="box">
+<h2>Login</h2>
 
-    <div id="login">
-      <div class="field">
-        <input type="email" id="l-email" placeholder="E-mail">
-      </div>
+<input id="email" placeholder="Email">
 
-      <div class="field">
-        <div style="display:flex; gap:5px;">
-          <input type="password" id="l-pass" placeholder="Senha">
-          <button type="button" onclick="togglePassword('l-pass')">👁️</button>
-        </div>
-      </div>
-
-      <button class="btn" onclick="login()">Entrar</button>
-      <div id="l-err" class="aerr"></div>
-
-      <div class="toggle" onclick="showRegister()">Criar conta</div>
-    </div>
-
-    <div id="register" style="display:none">
-      <div class="field">
-        <input type="text" id="r-name" placeholder="Nome">
-      </div>
-
-      <div class="field">
-        <input type="email" id="r-email" placeholder="E-mail">
-      </div>
-
-      <div class="field">
-        <div style="display:flex; gap:5px;">
-          <input type="password" id="r-pass" placeholder="Senha (mín 6)">
-          <button type="button" onclick="togglePassword('r-pass')">👁️</button>
-        </div>
-      </div>
-
-      <button class="btn" onclick="register()">Criar conta</button>
-      <div id="r-err" class="aerr"></div>
-
-      <div class="toggle" onclick="showLogin()">Voltar</div>
-    </div>
-
-  </div>
+<div style="display:flex; gap:5px;">
+<input type="password" id="pass" placeholder="Senha">
+<button onclick="togglePassword()">👁️</button>
 </div>
 
-<!-- APP -->
-<div id="app">
-  <div class="top">
-    <div id="user"></div>
-    <button onclick="logout()">Sair</button>
-  </div>
+<button onclick="login()">Entrar</button>
+<button onclick="register()">Criar conta</button>
 
-  <h3>Tarefas de Hoje</h3>
-  <div id="tasks"></div>
+<div id="err"></div>
+</div>
 
-  <div style="margin-top:10px;">
-    <input id="newTask" placeholder="Nova tarefa">
-    <button onclick="addTask()">Adicionar</button>
-  </div>
+<div id="app" class="box" style="display:none">
+
+<h3 id="user"></h3>
+
+<h4>Hoje</h4>
+<div id="today"></div>
+
+<h4>Amanhã</h4>
+<div id="tomorrow"></div>
+
+<input id="taskInput" placeholder="Nova tarefa">
+<button onclick="addToday()">Adicionar hoje</button>
+<button onclick="addTomorrow()">Adicionar amanhã</button>
+
+<button onclick="logout()">Sair</button>
+
 </div>
 
 <script>
 const sb = supabase.createClient(
 'https://awnmxrxkhxepryixhurd.supabase.co',
-'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+'SUA_KEY_AQUI'
 );
 
-let user = null;
+let me = null;
 
-/* 👁️ MOSTRAR SENHA */
-function togglePassword(id){
-  const input = document.getElementById(id);
-  input.type = input.type === "password" ? "text" : "password";
-}
-
-/* TELAS */
-function showRegister(){
-  document.getElementById("login").style.display="none";
-  document.getElementById("register").style.display="block";
-}
-function showLogin(){
-  document.getElementById("login").style.display="block";
-  document.getElementById("register").style.display="none";
+/* 👁️ */
+function togglePassword(){
+  pass.type = pass.type === "password" ? "text" : "password";
 }
 
 /* HASH */
@@ -123,65 +73,87 @@ async function hash(p){
 
 /* LOGIN */
 async function login(){
-  const email = l-email.value;
-  const pass = await hash(l-pass.value);
+  const h = await hash(pass.value);
 
   const {data} = await sb.from('profiles')
     .select('*')
-    .eq('email', email)
-    .eq('pass_hash', pass)
+    .eq('email', email.value)
+    .eq('pass_hash', h)
     .single();
 
   if(!data){
-    l-err.textContent = "Erro login";
+    err.innerText = "Erro login";
     return;
   }
 
-  user = data;
+  me = data;
   start();
 }
 
 /* REGISTER */
 async function register(){
-  const name = r-name.value;
-  const email = r-email.value;
-  const pass = await hash(r-pass.value);
-
   await sb.from('profiles').insert({
     id: crypto.randomUUID(),
-    name,
-    email,
-    pass_hash: pass
+    email: email.value,
+    pass_hash: await hash(pass.value),
+    name: email.value
   });
 
   alert("Conta criada!");
-  showLogin();
 }
 
-/* APP */
+/* START */
 function start(){
   auth.style.display="none";
   app.style.display="block";
-  user.innerHTML = user.name;
-  loadTasks();
+  user.innerText = me.email;
+  load();
 }
 
+/* LOGOUT */
 function logout(){
   location.reload();
 }
 
-/* TASKS */
-async function loadTasks(){
-  const {data} = await sb.from('tasks').select('*');
-  tasks.innerHTML = data.map(t=>`<div>${t.title}</div>`).join('');
+/* DATA */
+function today(){
+  return new Date().toISOString().split('T')[0];
 }
 
-async function addTask(){
+function tomorrow(){
+  const d = new Date();
+  d.setDate(d.getDate()+1);
+  return d.toISOString().split('T')[0];
+}
+
+/* LOAD */
+async function load(){
+  const {data} = await sb.from('tasks').select('*');
+
+  const tdy = data.filter(t=>t.date===today());
+  const tmr = data.filter(t=>t.date===tomorrow());
+
+  today.innerHTML = tdy.map(t=>`<div class="task">${t.title}</div>`).join('');
+  tomorrow.innerHTML = tmr.map(t=>`<div class="task">${t.title}</div>`).join('');
+}
+
+/* ADD */
+async function addToday(){
   await sb.from('tasks').insert({
-    title: newTask.value
+    title: taskInput.value,
+    date: today()
   });
-  newTask.value="";
-  loadTasks();
+  taskInput.value="";
+  load();
+}
+
+async function addTomorrow(){
+  await sb.from('tasks').insert({
+    title: taskInput.value,
+    date: tomorrow()
+  });
+  taskInput.value="";
+  load();
 }
 </script>
 
