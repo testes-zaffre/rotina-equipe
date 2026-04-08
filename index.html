@@ -13,31 +13,13 @@ body{font-family:Arial;background:#f5f5f5;padding:20px}
 input{width:100%;padding:10px;margin:5px 0}
 button{padding:10px;width:100%;margin-top:5px}
 .task{padding:8px;border-bottom:1px solid #ddd}
-.err{color:red}
 </style>
 </head>
 
 <body>
 
-<div id="auth" class="box">
-<h2>Login</h2>
-
-<input id="email" placeholder="Email">
-
-<div style="display:flex; gap:5px;">
-<input type="password" id="pass" placeholder="Senha">
-<button type="button" onclick="togglePassword()">👁️</button>
-</div>
-
-<button onclick="login()">Entrar</button>
-<button onclick="register()">Criar conta</button>
-
-<div id="err" class="err"></div>
-</div>
-
-<div id="app" class="box" style="display:none">
-
-<h3 id="user"></h3>
+<div class="box">
+<h2>Rotina Equipe</h2>
 
 <h4>Hoje</h4>
 <div id="todayList"></div>
@@ -46,10 +28,9 @@ button{padding:10px;width:100%;margin-top:5px}
 <div id="tomorrowList"></div>
 
 <input id="taskInput" placeholder="Nova tarefa">
+
 <button onclick="addToday()">Adicionar hoje</button>
 <button onclick="addTomorrow()">Adicionar amanhã</button>
-
-<button onclick="logout()">Sair</button>
 
 </div>
 
@@ -58,69 +39,6 @@ const sb = supabase.createClient(
 'https://awnmxrxkhxepryixhurd.supabase.co',
 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3bm14cnhraHhlcHJ5aXhodXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzc0MzksImV4cCI6MjA5MDcxMzQzOX0.iajrnVDp05G9MAVWGbIHJEbK7dl5U4uqqry7p7CLg_M'
 );
-
-let me = null;
-
-function togglePassword(){
-  const input = document.getElementById("pass");
-  input.type = input.type === "password" ? "text" : "password";
-}
-
-async function hash(p){
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(p));
-  return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');
-}
-
-async function login(){
-  const emailInput = document.getElementById("email").value;
-  const passInput = document.getElementById("pass").value;
-
-  const h = await hash(passInput);
-
-  const {data, error} = await sb.from('profiles')
-    .select('*')
-    .eq('email', emailInput)
-    .eq('pass_hash', h)
-    .maybeSingle();
-
-  if(error || !data){
-    document.getElementById("err").innerText = "Erro login";
-    return;
-  }
-
-  me = data;
-  start();
-}
-
-async function register(){
-  const emailInput = document.getElementById("email").value;
-  const passInput = document.getElementById("pass").value;
-
-  if(!emailInput || !passInput){
-    document.getElementById("err").innerText = "Preencha email e senha";
-    return;
-  }
-
-  await sb.from('profiles').insert({
-    id: crypto.randomUUID(),
-    email: emailInput,
-    pass_hash: await hash(passInput),
-    name: emailInput
-  });
-
-  document.getElementById("err").innerText = "Conta criada! Faça login.";
-}
-
-function start(){
-  document.getElementById("auth").style.display="none";
-  document.getElementById("app").style.display="block";
-  document.getElementById("user").innerText = me.email;
-  load();
-}
-
-function logout(){
-  location.reload();
-}
 
 function getToday(){
   return new Date().toISOString().split('T')[0];
@@ -168,6 +86,8 @@ async function addTomorrow(){
   document.getElementById("taskInput").value="";
   load();
 }
+
+load();
 </script>
 
 </body>
