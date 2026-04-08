@@ -11,8 +11,9 @@
 body{font-family:Arial;background:#f5f5f5;padding:20px}
 .box{background:#fff;padding:20px;border-radius:10px;max-width:400px;margin:auto}
 input{width:100%;padding:10px;margin:5px 0}
-button{padding:10px;width:100%;margin-top:5px}
+button{padding:10px;width:100%;margin-top:5px;cursor:pointer}
 .task{padding:8px;border-bottom:1px solid #ddd}
+.err{color:red;font-size:13px}
 </style>
 </head>
 
@@ -25,13 +26,13 @@ button{padding:10px;width:100%;margin-top:5px}
 
 <div style="display:flex; gap:5px;">
 <input type="password" id="pass" placeholder="Senha">
-<button onclick="togglePassword()">👁️</button>
+<button type="button" onclick="togglePassword()">👁️</button>
 </div>
 
 <button onclick="login()">Entrar</button>
 <button onclick="register()">Criar conta</button>
 
-<div id="err"></div>
+<div id="err" class="err"></div>
 </div>
 
 <div id="app" class="box" style="display:none">
@@ -39,10 +40,10 @@ button{padding:10px;width:100%;margin-top:5px}
 <h3 id="user"></h3>
 
 <h4>Hoje</h4>
-<div id="today"></div>
+<div id="todayList"></div>
 
 <h4>Amanhã</h4>
-<div id="tomorrow"></div>
+<div id="tomorrowList"></div>
 
 <input id="taskInput" placeholder="Nova tarefa">
 <button onclick="addToday()">Adicionar hoje</button>
@@ -55,14 +56,15 @@ button{padding:10px;width:100%;margin-top:5px}
 <script>
 const sb = supabase.createClient(
 'https://awnmxrxkhxepryixhurd.supabase.co',
-'SUA_KEY_AQUI'
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3bm14cnhraHhlcHJ5aXhodXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzc0MzksImV4cCI6MjA5MDcxMzQzOX0.iajrnVDp05G9MAVWGbIHJEbK7dl5U4uqqry7p7CLg_M'
 );
 
 let me = null;
 
-/* 👁️ */
+/* 👁️ MOSTRAR SENHA */
 function togglePassword(){
-  pass.type = pass.type === "password" ? "text" : "password";
+  const input = document.getElementById("pass");
+  input.type = input.type === "password" ? "text" : "password";
 }
 
 /* HASH */
@@ -73,16 +75,19 @@ async function hash(p){
 
 /* LOGIN */
 async function login(){
-  const h = await hash(pass.value);
+  const emailInput = document.getElementById("email").value;
+  const passInput = document.getElementById("pass").value;
+
+  const h = await hash(passInput);
 
   const {data} = await sb.from('profiles')
     .select('*')
-    .eq('email', email.value)
+    .eq('email', emailInput)
     .eq('pass_hash', h)
     .single();
 
   if(!data){
-    err.innerText = "Erro login";
+    document.getElementById("err").innerText = "Erro login";
     return;
   }
 
@@ -92,11 +97,14 @@ async function login(){
 
 /* REGISTER */
 async function register(){
+  const emailInput = document.getElementById("email").value;
+  const passInput = document.getElementById("pass").value;
+
   await sb.from('profiles').insert({
     id: crypto.randomUUID(),
-    email: email.value,
-    pass_hash: await hash(pass.value),
-    name: email.value
+    email: emailInput,
+    pass_hash: await hash(passInput),
+    name: emailInput
   });
 
   alert("Conta criada!");
@@ -104,9 +112,9 @@ async function register(){
 
 /* START */
 function start(){
-  auth.style.display="none";
-  app.style.display="block";
-  user.innerText = me.email;
+  document.getElementById("auth").style.display="none";
+  document.getElementById("app").style.display="block";
+  document.getElementById("user").innerText = me.email;
   load();
 }
 
@@ -115,12 +123,12 @@ function logout(){
   location.reload();
 }
 
-/* DATA */
-function today(){
+/* DATAS */
+function getToday(){
   return new Date().toISOString().split('T')[0];
 }
 
-function tomorrow(){
+function getTomorrow(){
   const d = new Date();
   d.setDate(d.getDate()+1);
   return d.toISOString().split('T')[0];
@@ -130,29 +138,38 @@ function tomorrow(){
 async function load(){
   const {data} = await sb.from('tasks').select('*');
 
-  const tdy = data.filter(t=>t.date===today());
-  const tmr = data.filter(t=>t.date===tomorrow());
+  const tdy = data.filter(t=>t.date===getToday());
+  const tmr = data.filter(t=>t.date===getTomorrow());
 
-  today.innerHTML = tdy.map(t=>`<div class="task">${t.title}</div>`).join('');
-  tomorrow.innerHTML = tmr.map(t=>`<div class="task">${t.title}</div>`).join('');
+  document.getElementById("todayList").innerHTML =
+    tdy.map(t=>`<div class="task">${t.title}</div>`).join('');
+
+  document.getElementById("tomorrowList").innerHTML =
+    tmr.map(t=>`<div class="task">${t.title}</div>`).join('');
 }
 
 /* ADD */
 async function addToday(){
+  const val = document.getElementById("taskInput").value;
+
   await sb.from('tasks').insert({
-    title: taskInput.value,
-    date: today()
+    title: val,
+    date: getToday()
   });
-  taskInput.value="";
+
+  document.getElementById("taskInput").value="";
   load();
 }
 
 async function addTomorrow(){
+  const val = document.getElementById("taskInput").value;
+
   await sb.from('tasks').insert({
-    title: taskInput.value,
-    date: tomorrow()
+    title: val,
+    date: getTomorrow()
   });
-  taskInput.value="";
+
+  document.getElementById("taskInput").value="";
   load();
 }
 </script>
