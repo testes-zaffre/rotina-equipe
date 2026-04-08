@@ -81,7 +81,7 @@ async function login(){
     .select('*')
     .eq('email', emailInput)
     .eq('pass_hash', h)
-    .single();
+    .maybeSingle();
 
   if(error || !data){
     document.getElementById("err").innerText = "Erro login";
