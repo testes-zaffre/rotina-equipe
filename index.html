@@ -87,7 +87,19 @@ async function addTomorrow(){
   load();
 }
 
-load();
+async function load(){
+  const {data, error} = await sb.from('tasks').select('*');
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
+  console.log(data); // 👈 ver no console
+
+  document.getElementById("todayList").innerHTML =
+    data.map(t=>`<div class="task">${t.title} - ${t.date}</div>`).join('');
+}
 </script>
 
 </body>
