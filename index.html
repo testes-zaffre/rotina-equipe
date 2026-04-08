@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -15,6 +16,7 @@ button{padding:10px;width:100%;margin-top:5px}
 .task{padding:8px;border-bottom:1px solid #ddd}
 .err{color:red}
 </style>
+
 </head>
 
 <body>
@@ -29,8 +31,7 @@ button{padding:10px;width:100%;margin-top:5px}
 <button type="button" onclick="togglePassword()">👁️</button>
 </div>
 
-<button onclick="login()">Entrar</button>
-<button onclick="register()">Criar conta</button>
+<button onclick="login()">Entrar</button> <button onclick="register()">Criar conta</button>
 
 <div id="err" class="err"></div>
 </div>
@@ -55,8 +56,8 @@ button{padding:10px;width:100%;margin-top:5px}
 
 <script>
 const sb = supabase.createClient(
-  'https://awnmxrxkhxepryixhurd.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3bm14cnhraHhlcHJ5aXhodXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzc0MzksImV4cCI6MjA5MDcxMzQzOX0.iajrnVDp05G9MAVWGbIHJEbK7dl5U4uqqry7p7CLg_M'
+'https://awnmxrxkhxepryixhurd.supabase.co',
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3bm14cnhraHhlcHJ5aXhodXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzc0MzksImV4cCI6MjA5MDcxMzQzOX0.iajrnVDp05G9MAVWGbIHJEbK7dl5U4uqqry7p7CLg_M'
 );
 
 let me = null;
@@ -72,12 +73,14 @@ async function hash(p){
 }
 
 async function login(){
+  document.getElementById("err").innerText = "";
+
   const emailInput = document.getElementById("email").value;
   const passInput = document.getElementById("pass").value;
 
   const h = await hash(passInput);
 
-  const {data, error} = await sb.from('profiles')
+  const { data, error } = await sb.from('profiles')
     .select('*')
     .eq('email', emailInput)
     .eq('pass_hash', h)
@@ -93,6 +96,8 @@ async function login(){
 }
 
 async function register(){
+  document.getElementById("err").innerText = "";
+
   const emailInput = document.getElementById("email").value;
   const passInput = document.getElementById("pass").value;
 
@@ -101,14 +106,19 @@ async function register(){
     return;
   }
 
-  await sb.from('profiles').insert({
+  const { error } = await sb.from('profiles').insert({
     id: crypto.randomUUID(),
     email: emailInput,
     pass_hash: await hash(passInput),
     name: emailInput
   });
 
-  document.getElementById("err").innerText = "Conta criada! Faça login.";
+  if(error){
+    document.getElementById("err").innerText = "Erro ao criar conta";
+    return;
+  }
+
+  document.getElementById("err").innerText = "Conta criada! Agora clique em entrar.";
 }
 
 function start(){
@@ -133,7 +143,7 @@ function getTomorrow(){
 }
 
 async function load(){
-  const {data} = await sb.from('tasks').select('*');
+  const { data } = await sb.from('tasks').select('*');
 
   const tdy = data.filter(t=>t.date===getToday());
   const tmr = data.filter(t=>t.date===getTomorrow());
