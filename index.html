@@ -93,21 +93,28 @@ async function login(){
 
   me = data;
   start();
-}
-
-/* REGISTER */
 async function register(){
   const emailInput = document.getElementById("email").value;
   const passInput = document.getElementById("pass").value;
 
-  await sb.from('profiles').insert({
+  if(!emailInput || !passInput){
+    document.getElementById("err").innerText = "Preencha email e senha";
+    return;
+  }
+
+  const {error} = await sb.from('profiles').insert({
     id: crypto.randomUUID(),
     email: emailInput,
     pass_hash: await hash(passInput),
     name: emailInput
   });
 
-  alert("Conta criada!");
+  if(error){
+    document.getElementById("err").innerText = "Erro ao criar conta";
+    return;
+  }
+
+  document.getElementById("err").innerText = "Conta criada! Agora faça login";
 }
 
 /* START */
